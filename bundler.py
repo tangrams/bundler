@@ -54,8 +54,9 @@ def bundle(filename):
 
 
 if __name__ == "__main__":
-    filename, file_extension = os.path.splitext(sys.argv[1])
-    if file_extension == '.yaml':
-        bundle(filename)
+    if len(sys.argv) > 1:
+        filename, file_extension = os.path.splitext(sys.argv[1])
+        if file_extension == '.yaml':
+            bundle(filename)
     else:
         bundle(raw_input("What Tangram YAML scene file do you want to bundle into a zipfile?: "))
