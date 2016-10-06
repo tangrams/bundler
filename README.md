@@ -6,3 +6,8 @@ Bundle a Tangram `.yaml` scene file (and the corresponding dependences and compo
 pip install pyyaml
 ./bundle.py scene.yaml
 ```
+
+
+```bash
+python <(curl -s https://raw.githubusercontent.com/tangrams/bundler/master/bundler.py) 
+```

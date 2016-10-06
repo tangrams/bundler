@@ -41,22 +41,25 @@ def zip(files, dst):
     zf.close()
 
 # ================================== Main functions
-def bundle(filename):
-    all_dependencies = [] 
-    addDependencies(all_dependencies, filename+'.yaml')
-    files = list(set(all_dependencies))
+def bundler(full_filename):
+    print full_filename, os.getcwd()
+    filename, file_extension = os.path.splitext(full_filename)
+    if file_extension == '.yaml':
+        all_dependencies = [] 
+        addDependencies(all_dependencies, './'+full_filename)
+        files = list(set(all_dependencies))
 
-    print "Bundling ",filename,len(files),"dependencies, into ",filename+'.zip'
-    zipf = zipfile.ZipFile(filename+'.zip', 'w', zipfile.ZIP_DEFLATED)
-    for file in files:
-        zipf.write(file)
-    zipf.close()
+        print "Bundling ",filename,"width",len(files),"dependencies, into ",filename+".zip"
+        zipf = zipfile.ZipFile(filename+'.zip', 'w', zipfile.ZIP_DEFLATED)
+        for file in files:
+            zipf.write(file)
+        zipf.close()
+    else:
+        print 'Error: file', 
 
 
 if __name__ == "__main__":
     if len(sys.argv) > 1:
-        filename, file_extension = os.path.splitext(sys.argv[1])
-        if file_extension == '.yaml':
-            bundle(filename)
+        bundler(sys.argv[1])
     else:
-        bundle(raw_input("What Tangram YAML scene file do you want to bundle into a zipfile?: "))
+        bundler(raw_input("What Tangram YAML scene file do you want to bundle into a zipfile?: "))
