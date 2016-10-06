@@ -23,7 +23,7 @@ pip install pyyaml
 and the you can excecute the script directly from this repository by doing:
 
 ```bash
-python <(curl -s https://raw.githubusercontent.com/tangrams/bundler/master/bundler.py) 
+python <(curl -s https://raw.githubusercontent.com/tangrams/bundler/master/tangram_bundler/__init__.py) 
 ```
 
 Once the script runs will ask you for the main scene YAML file (the one that "rules" them all).
