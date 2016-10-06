@@ -6,5 +6,3 @@ Bundle a Tangram `.yaml` scene file (and the corresponding dependences and compo
 pip install pyyaml
 ./bundle.py scene.yaml
 ```
-
-

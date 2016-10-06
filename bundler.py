@@ -46,8 +46,7 @@ def bundle(filename):
     addDependencies(all_dependencies, filename+'.yaml')
     files = list(set(all_dependencies))
 
-    print "Bundling ",argv[0],len(files),"dependencies, into ",filename+'.zip'
-
+    print "Bundling ",filename,len(files),"dependencies, into ",filename+'.zip'
     zipf = zipfile.ZipFile(filename+'.zip', 'w', zipfile.ZIP_DEFLATED)
     for file in files:
         zipf.write(file)
@@ -55,7 +54,7 @@ def bundle(filename):
 
 
 if __name__ == "__main__":
-    filename, file_extension = os.path.splitext(argv[0])
+    filename, file_extension = os.path.splitext(sys.argv[1])
     if file_extension == '.yaml':
         bundle(filename)
     else:
