@@ -48,9 +48,11 @@ def bundler(full_filename):
     else:
         print 'Error: file', 
 
-
-if __name__ == "__main__":
+def main():
     if len(sys.argv) > 1:
         bundler(sys.argv[1])
     else:
         bundler(raw_input("What Tangram YAML scene file do you want to bundle into a zipfile?: "))
+    
+if __name__ == "__main__":
+    exit(main())
