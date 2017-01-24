@@ -3,7 +3,7 @@ from setuptools import setup
 setup(
     name = 'tangram_bundler',
     url = 'https://github.com/tangrams/bundler',
-    version = 0.2,
+    version = 0.3,
     install_requires = [
         'PyYAML == 3.12'
     ],
