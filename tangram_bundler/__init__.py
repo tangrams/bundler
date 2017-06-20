@@ -37,7 +37,7 @@ def addDependencies(file_list, filename):
                     if 'u_envmap' in yaml_file['styles'][style]['shaders']['uniforms']:
                         file_list.append(os.path.normpath(folder + '/' + yaml_file['styles'][style]['shaders']['uniforms']['u_envmap']))
 
-    # Search for inner dependemcies
+    # Search for inner dependencies
     if 'import' in yaml_file:
         if (type(yaml_file['import']) is str):
             addDependencies(file_list, folder + '/' + yaml_file['import'])
@@ -51,7 +51,22 @@ def bundler(full_filename):
     filename, file_extension = os.path.splitext(full_filename)
     if file_extension == '.yaml':
         all_dependencies = []
+
+        # 1st order dependencies
         addDependencies(all_dependencies, './'+full_filename)
+
+        # 2nd order theme dependencies
+        try:
+            for file in os.listdir(os.getcwd() + "/themes"):
+                if file.endswith(".yaml"):
+                    # track like normal
+                    all_dependencies.append("themes/" + file)
+                    # some themes require additional assets
+                    print "looking at dependencies for: %s" % (file,)
+                    addDependencies(all_dependencies, "themes/" + file)
+        except Exception:
+            print "\tskipping: themes (none found)"
+
         files = list(set(all_dependencies))
 
         print "Bundling ",filename,"width",len(files),"dependencies, into ",filename+".zip"
