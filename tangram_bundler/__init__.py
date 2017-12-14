@@ -29,13 +29,21 @@ def addDependencies(file_list, filename):
             if 'url' in yaml_file['textures'][font]:
                 file_list.append(os.path.normpath(folder + '/' + yaml_file['textures'][font]['url']))
 
-    # Search for u_envmap urls
+    # Search for u_envmap or u_ramp urls
     if 'styles' in yaml_file:
         for style in yaml_file['styles']:
             if 'shaders' in yaml_file['styles'][style]:
                 if 'uniforms' in yaml_file['styles'][style]['shaders']:
                     if 'u_envmap' in yaml_file['styles'][style]['shaders']['uniforms']:
-                        file_list.append(os.path.normpath(folder + '/' + yaml_file['styles'][style]['shaders']['uniforms']['u_envmap']))
+                        try:
+                            file_list.append(os.path.normpath(folder + '/' + yaml_file['textures'][ yaml_file['styles'][style]['shaders']['uniforms']['u_envmap'] ]['url']))
+                        except Exception:
+                            print "\tskipping: shader texture (none found)"
+                    if 'u_ramp' in yaml_file['styles'][style]['shaders']['uniforms']:
+                        try:
+                            file_list.append(os.path.normpath(folder + '/' + yaml_file['textures'][ yaml_file['styles'][style]['shaders']['uniforms']['u_ramp'] ]['url']))
+                        except Exception:
+                            print "\tskipping: shader texture (none found)"
 
     # Search for inner dependencies
     if 'import' in yaml_file:
