@@ -2,8 +2,27 @@
 
 import os, sys, glob, yaml, zipfile
 
+# Append uniform textures
+# - uniforms could reference a texture already loaded from textures: {} or could explicitly define a texture file
+def addUniformTextureDependency(file_list, basePath, yaml_file, styleName, uniformName):
+    referenceTexturePath = ""
+    explicitUniformTexturePath = ""
+    key = yaml_file['styles'][styleName]['shaders']['uniforms'][uniformName]
+
+    if isinstance(key, basestring):
+        if ('textures' in yaml_file) and (key in yaml_file['textures']):
+            referenceTexturePath = basePath + '/' + yaml_file['textures'][ yaml_file['styles'][styleName]['shaders']['uniforms'][uniformName] ]['url']
+        explicitUniformTexturePath = basePath + '/' + yaml_file['styles'][styleName]['shaders']['uniforms'][uniformName]
+
+    if (os.path.exists(explicitUniformTexturePath)):
+        file_list.append(os.path.normpath(explicitUniformTexturePath))
+    elif (os.path.exists(referenceTexturePath)):
+        file_list.append(os.path.normpath(referenceTexturePath))
+
+
 # Append yaml dependences in yaml_file ('import' files) to another yaml file (full_yaml_file)
 def addDependencies(file_list, filename):
+    print "Adding dependencies for file: ", filename
     file_list.append(os.path.normpath(filename))
     folder = os.path.dirname(filename)
     yaml_file = yaml.safe_load(open(filename))
@@ -25,25 +44,17 @@ def addDependencies(file_list, filename):
 
     # Search for textures urls
     if 'textures' in yaml_file:
-        for font in yaml_file['textures']:
-            if 'url' in yaml_file['textures'][font]:
-                file_list.append(os.path.normpath(folder + '/' + yaml_file['textures'][font]['url']))
+        for texture in yaml_file['textures']:
+            if 'url' in yaml_file['textures'][texture]:
+                file_list.append(os.path.normpath(folder + '/' + yaml_file['textures'][texture]['url']))
 
     # Search for u_envmap or u_ramp urls
     if 'styles' in yaml_file:
         for style in yaml_file['styles']:
             if 'shaders' in yaml_file['styles'][style]:
                 if 'uniforms' in yaml_file['styles'][style]['shaders']:
-                    if 'u_envmap' in yaml_file['styles'][style]['shaders']['uniforms']:
-                        try:
-                            file_list.append(os.path.normpath(folder + '/' + yaml_file['textures'][ yaml_file['styles'][style]['shaders']['uniforms']['u_envmap'] ]['url']))
-                        except Exception:
-                            print "\tskipping: shader texture (none found)"
-                    if 'u_ramp' in yaml_file['styles'][style]['shaders']['uniforms']:
-                        try:
-                            file_list.append(os.path.normpath(folder + '/' + yaml_file['textures'][ yaml_file['styles'][style]['shaders']['uniforms']['u_ramp'] ]['url']))
-                        except Exception:
-                            print "\tskipping: shader texture (none found)"
+                    for uniform in yaml_file['styles'][style]['shaders']['uniforms']:
+                        addUniformTextureDependency(file_list, folder, yaml_file, style, uniform)
 
     # Search for inner dependencies
     if 'import' in yaml_file:
