@@ -5,7 +5,7 @@ from urlparse import urljoin
 
 # Append uniform textures
 # - uniforms could reference a texture already loaded from textures: {} or could explicitly define a texture file
-def addUniformTextureDependency(file_list, basePath, rootNode, styleName, uniformName):
+def addUniformTextureDependency(fileList, basePath, rootNode, styleName, uniformName):
     referenceTexturePath = ""
     explicitUniformTexturePath = ""
     key = rootNode['styles'][styleName]['shaders']['uniforms'][uniformName]
@@ -16,13 +16,12 @@ def addUniformTextureDependency(file_list, basePath, rootNode, styleName, unifor
         explicitUniformTexturePath = os.path.relpath(rootNode['styles'][styleName]['shaders']['uniforms'][uniformName], basePath)
 
     if (os.path.exists(explicitUniformTexturePath)):
-        file_list.append(explicitUniformTexturePath)
+        fileList.append(explicitUniformTexturePath)
     elif (os.path.exists(referenceTexturePath)):
-        file_list.append(referenceTexturePath)
+        fileList.append(referenceTexturePath)
 
-
-# Append yaml dependences in rootNode ('import' files) to another yaml file (full_rootNode)
-def addDependencies(file_list, rootNode, basePath):
+# Fetch all asset dependencies in the constructed rootNode
+def fetchDependencies(fileList, rootNode, basePath):
     # Search for fonts urls
     if 'fonts' in rootNode:
         fontsNode = rootNode['fonts']
@@ -31,10 +30,10 @@ def addDependencies(file_list, rootNode, basePath):
             for prop in fontNode:
                 # initial Tangram font support
                 if 'url' in prop:
-                    file_list.append(os.path.relpath(prop['url'], basePath))
+                    fileList.append(os.path.relpath(prop['url'], basePath))
                 # newer Tangram font support
                 if 'weight' in prop and type(prop['weight']) is str:
-                    file_list.append(os.path.relpath(prop['weight'], basePath))
+                    fileList.append(os.path.relpath(prop['weight'], basePath))
 
     # Search for textures urls
     if 'textures' in rootNode:
@@ -42,7 +41,7 @@ def addDependencies(file_list, rootNode, basePath):
         for texture in texturesNode:
             textureNode = texturesNode[texture]
             if 'url' in textureNode:
-                file_list.append(os.path.relpath(textureNode['url'], basePath))
+                fileList.append(os.path.relpath(textureNode['url'], basePath))
 
     # Search for asset url in styles
     if 'styles' in rootNode:
@@ -54,17 +53,16 @@ def addDependencies(file_list, rootNode, basePath):
                 if 'uniforms' in shadersNode:
                     uniformsNode = shadersNode['uniforms']
                     for uniform in uniformsNode:
-                        addUniformTextureDependency(file_list, basePath, rootNode, style, uniform)
+                        addUniformTextureDependency(fileList, basePath, rootNode, style, uniform)
             if 'texture' in styleNode:
-                file_list.append(os.path.relpath(styleNode['texture'], basePath))
+                fileList.append(os.path.relpath(styleNode['texture'], basePath))
             if 'material' in styleNode:
                 materialNode = styleNode['material']
                 if (type(materialNode) is dict):
                     for prop in ['emission', 'ambient', 'diffuse', 'specular', 'normal']:
                         propNode = materialNode[prop]
                         if (type(propNode) is dict and 'texture' in propNode):
-                            file_list.append(os.path.relpath(propNode['texture'], basePath))
-
+                            fileList.append(os.path.relpath(propNode['texture'], basePath))
 
 def ignoreFileForBundling(fileName):
     # we atleast know we need to ignore bundling any network url (todo: fetch yaml http urls and do not ignore these)
@@ -72,16 +70,16 @@ def ignoreFileForBundling(fileName):
         return False
     return True
 
-def collectAllImports(all_imports):
-    if (len(all_imports) <= 0):
+def collectAllImports(allImports):
+    if (len(allImports) <= 0):
         return
     
     subImports = {}
-    for fileName in all_imports:
-        yaml_file = all_imports[fileName]
+    for fileName in allImports:
+        yamlFile = allImports[fileName]
         directory = os.path.dirname(fileName)
-        if 'import' in yaml_file:
-            importNode = yaml_file['import']
+        if 'import' in yamlFile:
+            importNode = yamlFile['import']
             if (type(importNode) is str):
                 importPath = os.path.abspath(directory + '/' + importNode)
                 subImports[importPath] = yaml.safe_load(open(importPath)) 
@@ -90,14 +88,14 @@ def collectAllImports(all_imports):
                     importPath = os.path.abspath(directory + '/' + imp)
                     subImports[importPath] = yaml.safe_load(open(importPath))
             collectAllImports(subImports)
-    all_imports.update(subImports)
+    allImports.update(subImports)
 
 def getSceneImports(filename):
     imports = []
     directory = os.path.dirname(filename)
-    yaml_file = yaml.safe_load(open(filename))
-    if 'import' in yaml_file:
-        importNode = yaml_file['import']
+    yamlFile = yaml.safe_load(open(filename))
+    if 'import' in yamlFile:
+        importNode = yamlFile['import']
         if (type(importNode) is str):
             importPath = directory + '/' + importNode
             imports.append(importPath)
@@ -136,7 +134,6 @@ def resolveSceneTextureUrls(texturesNode, basePath):
 def resolveMaterialTextureUrls(materialNode, basePath):
     if (type(materialNode) is dict):
         for prop in ['emission', 'ambient', 'diffuse', 'specular', 'normal']:
-            propNode = materialNode[prop]
             if (type(materialNode[prop]) is dict and 'texture' in materialNode[prop]):
                 materialNode[prop]['texture'] = resolveGenericPath(materialNode[prop]['texture'], basePath)
 
@@ -183,45 +180,45 @@ def resolveSceneUrls(yamlRoot, filename):
         resolveSceneFontsUrl(yamlRoot['fonts'], basePath)
 
 
-def importSceneRecursive(yamlRoot, filename, all_imports, importedScenes):
+def importSceneRecursive(yamlRoot, filename, allImports, importedScenes):
     if filename in importedScenes:
         return
     importedScenes.add(filename)
-    sceneNode = all_imports[filename]
+    sceneNode = allImports[filename]
     if ((sceneNode is None) or (type(sceneNode) is not dict)):
         return
     imports = getSceneImports(filename)
     sceneNode['import'] = None
     for importScene in imports:
-        importSceneRecursive(yamlRoot, importScene, all_imports, importedScenes)
+        importSceneRecursive(yamlRoot, importScene, allImports, importedScenes)
     importedScenes.remove(filename)
     print "merging scene file to root: ", filename
     mergeMapFields(yamlRoot, sceneNode)
     resolveSceneUrls(yamlRoot, filename)
 
 # ================================== Main functions
-def bundler(full_filename):
-    print full_filename, os.getcwd()
-    filename, file_extension = os.path.splitext(full_filename)
-    if file_extension == '.yaml':
+def bundler(fullFilename):
+    print fullFilename, os.getcwd()
+    filename, fileExtension = os.path.splitext(fullFilename)
+    if fileExtension == '.yaml':
 
-        all_imports = {}
-        absFilename = os.path.abspath(full_filename)
-        all_imports[absFilename]= yaml.safe_load(open(absFilename))
-        collectAllImports(all_imports)
+        allImports = {}
+        absFilename = os.path.abspath(fullFilename)
+        allImports[absFilename]= yaml.safe_load(open(absFilename))
+        collectAllImports(allImports)
         
         rootNode = {}
         importedScenes = set()
-        importSceneRecursive(rootNode, absFilename, all_imports, importedScenes)
+        importSceneRecursive(rootNode, absFilename, allImports, importedScenes)
 
-        all_dependencies = []
+        allDependencies = []
         basePath = os.path.dirname(absFilename)
-        addDependencies(all_dependencies, rootNode, basePath)
+        fetchDependencies(allDependencies, rootNode, basePath)
 
-        for file in all_imports:
-            all_dependencies.append(os.path.relpath(file, basePath))
+        for file in allImports:
+            allDependencies.append(os.path.relpath(file, basePath))
 
-        files = list(set(all_dependencies))
+        files = list(set(allDependencies))
         print files
 
         print "Bundling ",filename,"width",len(files),"dependencies, into ",filename+".zip"
