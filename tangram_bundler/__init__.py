@@ -64,11 +64,15 @@ def fetchDependencies(fileList, rootNode, basePath):
                         if (type(propNode) is dict and 'texture' in propNode):
                             fileList.append(os.path.relpath(propNode['texture'], basePath))
 
-def ignoreFileForBundling(fileName):
+def validFileToBundle(fileName):
     # we atleast know we need to ignore bundling any network url (todo: fetch yaml http urls and do not ignore these)
     if (fileName.startswith("http") and not fileName.endswith(".yaml")):
         return False
     return True
+
+def loadYaml(filename):
+    with open(filename, 'r') as yamlFile:
+        return yaml.safe_load(yamlFile)
 
 def collectAllImports(allImports):
     if (len(allImports) <= 0):
@@ -77,23 +81,22 @@ def collectAllImports(allImports):
     subImports = {}
     for fileName in allImports:
         yamlFile = allImports[fileName]
-        directory = os.path.dirname(fileName)
         if 'import' in yamlFile:
             importNode = yamlFile['import']
             if (type(importNode) is str):
-                importPath = os.path.abspath(directory + '/' + importNode)
-                subImports[importPath] = yaml.safe_load(open(importPath)) 
+                importPath = os.path.abspath(urljoin(fileName, importNode))
+                subImports[importPath] = loadYaml(importPath)
             else:
                 for imp in importNode:
-                    importPath = os.path.abspath(directory + '/' + imp)
-                    subImports[importPath] = yaml.safe_load(open(importPath))
+                    importPath = os.path.abspath(urljoin(fileName, imp))
+                    subImports[importPath] = loadYaml(importPath)
             collectAllImports(subImports)
     allImports.update(subImports)
 
 def getSceneImports(filename):
     imports = []
     directory = os.path.dirname(filename)
-    yamlFile = yaml.safe_load(open(filename))
+    yamlFile = loadYaml(filename)
     if 'import' in yamlFile:
         importNode = yamlFile['import']
         if (type(importNode) is str):
@@ -197,38 +200,34 @@ def importSceneRecursive(yamlRoot, filename, allImports, importedScenes):
     resolveSceneUrls(yamlRoot, filename)
 
 # ================================== Main functions
-def bundler(fullFilename):
-    print fullFilename, os.getcwd()
-    filename, fileExtension = os.path.splitext(fullFilename)
-    if fileExtension == '.yaml':
+def bundler(filename):
+    print filename, os.getcwd()
 
-        allImports = {}
-        absFilename = os.path.abspath(fullFilename)
-        allImports[absFilename]= yaml.safe_load(open(absFilename))
-        collectAllImports(allImports)
-        
-        rootNode = {}
-        importedScenes = set()
-        importSceneRecursive(rootNode, absFilename, allImports, importedScenes)
+    allImports = {}
+    absFilename = os.path.abspath(filename)
+    allImports[absFilename] = loadYaml(absFilename)
+    collectAllImports(allImports)
+    
+    rootNode = {}
+    importedScenes = set()
+    importSceneRecursive(rootNode, absFilename, allImports, importedScenes)
 
-        allDependencies = []
-        basePath = os.path.dirname(absFilename)
-        fetchDependencies(allDependencies, rootNode, basePath)
+    allDependencies = []
+    basePath = os.path.dirname(absFilename)
+    fetchDependencies(allDependencies, rootNode, basePath)
 
-        for file in allImports:
-            allDependencies.append(os.path.relpath(file, basePath))
+    for file in allImports:
+        allDependencies.append(os.path.relpath(file, basePath))
 
-        files = list(set(allDependencies))
-        print files
+    files = list(set(allDependencies))
+    print files
 
-        print "Bundling ",filename,"width",len(files),"dependencies, into ",filename+".zip"
-        zipf = zipfile.ZipFile(filename+'.zip', 'w', zipfile.ZIP_DEFLATED)
-        for file in files:
-            if (ignoreFileForBundling(file) and os.path.exists(file)):
-                zipf.write(file)
-        zipf.close()
-    else:
-        print 'Error: file',
+    print "Bundling ",filename,"width",len(files),"dependencies, into ",filename+".zip"
+    zipf = zipfile.ZipFile(filename+'.zip', 'w', zipfile.ZIP_DEFLATED)
+    for file in files:
+        if (validFileToBundle(file) and os.path.exists(file)):
+            zipf.write(file)
+    zipf.close()
 
 def main():
     if len(sys.argv) > 1:
