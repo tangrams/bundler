@@ -203,6 +203,7 @@ def importSceneRecursive(yamlRoot, filename, allImports, importedScenes):
 def bundler(filename):
     print filename, os.getcwd()
 
+    zipFilename = os.path.splitext(filename)[0] + '.zip'
     allImports = {}
     absFilename = os.path.abspath(filename)
     allImports[absFilename] = loadYaml(absFilename)
@@ -222,8 +223,8 @@ def bundler(filename):
     files = list(set(allDependencies))
     print files
 
-    print "Bundling ",filename,"width",len(files),"dependencies, into ",filename+".zip"
-    zipf = zipfile.ZipFile(filename+'.zip', 'w', zipfile.ZIP_DEFLATED)
+    print "Bundling ",filename,"width",len(files),"dependencies, into ",zipFilename
+    zipf = zipfile.ZipFile(zipFilename, 'w', zipfile.ZIP_DEFLATED)
     for file in files:
         if (validFileToBundle(file) and os.path.exists(file)):
             zipf.write(file)
