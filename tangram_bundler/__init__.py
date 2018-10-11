@@ -193,7 +193,8 @@ def importSceneRecursive(yamlRoot, filename, allImports, importedScenes):
     imports = getSceneImports(filename)
     sceneNode['import'] = None
     for importScene in imports:
-        importSceneRecursive(yamlRoot, importScene, allImports, importedScenes)
+        importFilename = os.path.abspath(urljoin(filename, importScene))
+        importSceneRecursive(yamlRoot, importFilename, allImports, importedScenes)
     importedScenes.remove(filename)
     print "merging scene file to root: ", filename
     mergeMapFields(yamlRoot, sceneNode)
@@ -208,7 +209,7 @@ def bundler(filename):
     absFilename = os.path.abspath(filename)
     allImports[absFilename] = loadYaml(absFilename)
     collectAllImports(allImports)
-    
+
     rootNode = {}
     importedScenes = set()
     importSceneRecursive(rootNode, absFilename, allImports, importedScenes)
