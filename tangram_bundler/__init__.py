@@ -27,13 +27,14 @@ def fetchDependencies(fileList, rootNode, basePath):
         fontsNode = rootNode['fonts']
         for font in fontsNode:
             fontNode = fontsNode[font]
-            for prop in fontNode:
-                # initial Tangram font support
-                if 'url' in prop:
-                    fileList.append(os.path.relpath(prop['url'], basePath))
-                # newer Tangram font support
-                if 'weight' in prop and type(prop['weight']) is str:
-                    fileList.append(os.path.relpath(prop['weight'], basePath))
+            # single face object
+            if 'url' in fontNode and type(fontNode['url']) is str:
+                fileList.append(os.path.relpath(fontNode['url'], basePath))
+            else:
+                # multiple font face objects
+                for face in fontNode:
+                    if 'url' in face:
+                        fileList.append(os.path.relpath(face['url'], basePath))
 
     # Search for textures urls
     if 'textures' in rootNode:
