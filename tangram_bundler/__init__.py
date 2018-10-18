@@ -5,20 +5,28 @@ from urlparse import urljoin
 
 # Append uniform textures
 # - uniforms could reference a texture already loaded from textures: {} or could explicitly define a texture file
-def addUniformTextureDependency(fileList, basePath, rootNode, styleName, uniformName):
+
+def appendUniformTexturePath(fileList, basePath, rootNode, uniformTextureStr):
     referenceTexturePath = ""
     explicitUniformTexturePath = ""
-    key = rootNode['styles'][styleName]['shaders']['uniforms'][uniformName]
-
-    if isinstance(key, basestring):
-        if ('textures' in rootNode) and (key in rootNode['textures']):
-            referenceTexturePath = os.path.relpath(rootNode['textures'][ rootNode['styles'][styleName]['shaders']['uniforms'][uniformName] ]['url'], basePath)
-        explicitUniformTexturePath = os.path.relpath(rootNode['styles'][styleName]['shaders']['uniforms'][uniformName], basePath)
+    if ('textures' in rootNode) and (uniformTextureStr in rootNode['textures']):
+        referenceTexturePath = os.path.relpath(rootNode['textures'][ uniformTextureStr]['url'], basePath)
+    explicitUniformTexturePath = os.path.relpath(uniformTextureStr, basePath)
 
     if (os.path.exists(explicitUniformTexturePath)):
         fileList.append(explicitUniformTexturePath)
     elif (os.path.exists(referenceTexturePath)):
         fileList.append(referenceTexturePath)
+
+def addUniformTextureDependency(fileList, basePath, rootNode, styleName, uniformName):
+    key = rootNode['styles'][styleName]['shaders']['uniforms'][uniformName]
+
+    if isinstance(key, basestring):
+        appendUniformTexturePath(fileList, basePath, rootNode, key)
+    elif isinstance(key, list):
+        for textureStr in key:
+            if isinstance(textureStr, basestring):
+                appendUniformTexturePath(fileList, basePath, rootNode, textureStr)
 
 # Fetch all asset dependencies in the constructed rootNode
 def fetchDependencies(fileList, rootNode, basePath):
@@ -148,9 +156,11 @@ def resolveShaderTextureUrls(shadersNode, basePath):
                 if (type(shadersNode['uniforms'][uniform]) is str):
                     shadersNode['uniforms'][uniform] = resolveGenericPath(shadersNode['uniforms'][uniform], basePath)
                 elif (type(shadersNode['uniforms'][uniform]) is list):
+                    resolvedUniforms = []
                     for uni in shadersNode['uniforms'][uniform]:
                         if type(uni) is str:
-                            uni = resolveGenericPath(shadersNode['uniforms'][uniform][uni], basePath)
+                            resolvedUniforms.append(resolveGenericPath(uni, basePath))
+                    shadersNode['uniforms'][uniform] = resolvedUniforms
 
 def resolveSceneStyleUrls(stylesNode, basePath):
     for style in stylesNode:
