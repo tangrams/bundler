@@ -72,6 +72,11 @@ def fetchDependencies(fileList, rootNode, basePath):
                         propNode = materialNode[prop]
                         if (type(propNode) is dict and 'texture' in propNode):
                             fileList.append(os.path.relpath(propNode['texture'], basePath))
+            if 'draw' in styleNode:
+                drawNode = styleNode['draw']
+                for drawRule in drawNode:
+                    if 'texture' in drawRule:
+                        fileList.append(os.path.relpath(drawRule['texture'], basePath))
 
 def validFileToBundle(fileName):
     # we atleast know we need to ignore bundling any network url (todo: fetch yaml http urls and do not ignore these)
