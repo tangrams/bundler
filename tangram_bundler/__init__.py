@@ -28,6 +28,23 @@ def addUniformTextureDependency(fileList, basePath, rootNode, styleName, uniform
             if isinstance(textureStr, basestring):
                 appendUniformTexturePath(fileList, basePath, rootNode, textureStr)
 
+def appendDrawRuleTexture(fileList, drawRule, basePath):
+    if 'texture' in drawRule:
+        fileList.append(os.path.relpath(drawRule['texture'], basePath))
+
+def appendLayerDrawRuleTextures(fileList, layerNode, basePath):
+    for key in layerNode:
+        if key == 'data' or key == 'filter' or key == 'visible' or key == 'enabled':
+            # ignore these layer keys
+            continue
+        elif key == 'draw':
+            drawNode = layerNode['draw']
+            for drawRules in drawNode:
+                appendDrawRuleTexture(fileList, drawNode[drawRules], basePath)
+        else:
+            subLayerNode = layerNode[key]
+            appendLayerDrawRuleTextures(fileList, subLayerNode, basePath)
+
 # Fetch all asset dependencies in the constructed rootNode
 def fetchDependencies(fileList, rootNode, basePath):
     # Search for fonts urls
@@ -74,9 +91,13 @@ def fetchDependencies(fileList, rootNode, basePath):
                             fileList.append(os.path.relpath(propNode['texture'], basePath))
             if 'draw' in styleNode:
                 drawNode = styleNode['draw']
-                for drawRule in drawNode:
-                    if 'texture' in drawRule:
-                        fileList.append(os.path.relpath(drawRule['texture'], basePath))
+                appendDrawRuleTexture(fileList, drawNode, basePath)
+
+    # search texture paths defined in draw rule groups
+    if 'layers' in rootNode:
+        layersNode = rootNode['layers']
+        for layerNode in layersNode:
+            appendLayerDrawRuleTextures(fileList, layersNode[layerNode], basePath)
 
 def validFileToBundle(fileName):
     # we atleast know we need to ignore bundling any network url (todo: fetch yaml http urls and do not ignore these)
