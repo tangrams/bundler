@@ -198,6 +198,10 @@ def resolveSceneStyleUrls(stylesNode, basePath):
             resolveMaterialTextureUrls(stylesNode[style]['materials'], basePath)
         if 'shaders' in stylesNode[style]:
             resolveShaderTextureUrls(stylesNode[style]['shaders'], basePath)
+        if 'draw' in stylesNode[style]:
+            drawNode = stylesNode[style]['draw']
+            if 'texture' in drawNode:
+                stylesNode[style]['draw]']['texture'] = resolveGenericPath(stylesNode[style]['draw]']['texture'], basePath)
 
 def resolveSceneFontsUrl(fontsNode, basePath):
     if (type(fontsNode) is dict):
@@ -210,6 +214,22 @@ def resolveSceneFontsUrl(fontsNode, basePath):
                     if 'url' in f:
                         f['url'] = resolveGenericPath(f['url'], basePath)
 
+def resolveLayersDrawTexture(layerNode, basePath):
+    for key in layerNode:
+        if key == 'data' or key == 'filter' or key == 'visible' or key == 'enabled':
+            # ignore these layer keys
+            continue
+        elif key == 'draw':
+            drawNode = layerNode['draw']
+            for drawRule in drawNode:
+                drawRuleNode = drawNode[drawRule]
+                if 'texture' in drawRuleNode:
+                    drawRuleNode['texture'] = resolveGenericPath(drawRuleNode['texture'], basePath)
+        else:
+            subLayerNode = layerNode[key]
+            resolveLayersDrawTexture(subLayerNode, basePath)
+
+
 def resolveSceneUrls(yamlRoot, filename):
     basePath = filename
     if 'textures' in yamlRoot:
@@ -218,6 +238,10 @@ def resolveSceneUrls(yamlRoot, filename):
         resolveSceneStyleUrls(yamlRoot['styles'], basePath)
     if 'fonts' in yamlRoot:
         resolveSceneFontsUrl(yamlRoot['fonts'], basePath)
+    if 'layers' in yamlRoot:
+        layersNode = yamlRoot['layers']
+        for layerNode in layersNode:
+            resolveLayersDrawTexture(yamlRoot['layers'][layerNode], basePath)
 
 
 def importSceneRecursive(yamlRoot, filename, allImports, importedScenes):
