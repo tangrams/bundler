@@ -6,6 +6,8 @@ from urlparse import urljoin
 # Append uniform textures
 # - uniforms could reference a texture already loaded from textures: {} or could explicitly define a texture file
 
+LAYER_KEY_WORDS = ['data', 'filter', 'visible', 'enabled']
+
 def appendUniformTexturePath(fileList, basePath, rootNode, uniformTextureStr):
     referenceTexturePath = ""
     explicitUniformTexturePath = ""
@@ -34,7 +36,7 @@ def appendDrawRuleTexture(fileList, drawRule, basePath):
 
 def appendLayerDrawRuleTextures(fileList, layerNode, basePath):
     for key in layerNode:
-        if key == 'data' or key == 'filter' or key == 'visible' or key == 'enabled':
+        if key in LAYER_KEY_WORDS:
             # ignore these layer keys
             continue
         elif key == 'draw':
@@ -216,7 +218,7 @@ def resolveSceneFontsUrl(fontsNode, basePath):
 
 def resolveLayersDrawTexture(layerNode, basePath):
     for key in layerNode:
-        if key == 'data' or key == 'filter' or key == 'visible' or key == 'enabled':
+        if key in LAYER_KEY_WORDS:
             # ignore these layer keys
             continue
         elif key == 'draw':
