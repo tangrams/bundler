@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-import os, sys, glob, yaml, zipfile, argparse
+import os, sys, glob, yaml, zipfile, argparse, json
 from urlparse import urljoin
 
 # Append uniform textures
@@ -282,7 +282,7 @@ def importSceneRecursive(yamlRoot, filename, allImports, importedScenes):
     resolveSceneUrls(yamlRoot, filename)
 
 # ================================== Main functions
-def bundler(filename, unifiedYaml):
+def bundler(filename, unifiedYaml, exportAsJson):
     print filename, os.getcwd()
 
     zipFilename = os.path.splitext(filename)[0] + '.zip'
@@ -300,10 +300,15 @@ def bundler(filename, unifiedYaml):
     fetchDependencies(allDependencies, rootNode, basePath)
 
     if unifiedYaml:
-        unifiedBundledSceneYamlPath = os.path.abspath(urljoin(absFilename, "./unifiedBundledScene.yaml"))
-        with open(unifiedBundledSceneYamlPath, 'w') as outfile:
-            yaml.dump(rootNode, outfile, default_flow_style=False)
-        allDependencies.append(os.path.relpath(unifiedBundledSceneYamlPath, basePath))
+        if exportAsJson:
+            unifiedBundledSceneJsonPath = os.path.abspath(urljoin(absFilename, "./unifiedBundledScene.json"))
+            with open(unifiedBundledSceneJsonPath, 'w') as outfile:
+                json.dump(rootNode, outfile)
+        else:
+            unifiedBundledSceneYamlPath = os.path.abspath(urljoin(absFilename, "./unifiedBundledScene.yaml"))
+            with open(unifiedBundledSceneYamlPath, 'w') as outfile:
+                yaml.dump(rootNode, outfile, default_flow_style=False)
+            allDependencies.append(os.path.relpath(unifiedBundledSceneYamlPath, basePath))
     else:
         for file in allImports:
             allDependencies.append(os.path.relpath(file, basePath))
@@ -323,11 +328,15 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("yamlFile", help = "root scene file to initiate bundling")
     parser.add_argument("-u", "--unified", action="store_true", help = "Create a unified yaml file post merging all imports, instead of nested import files")
+    parser.add_argument("-j", "--json", action="store_true", help = "Export JSON unified bundler when set, else yaml unified bundler is exported")
     args = parser.parse_args()
     if args.unified:
-        bundler(args.yamlFile, True)
+        if args.json:
+            bundler(args.yamlFile, True, True)
+        else:
+            bundler(args.yamlFile, True, False)
     else:
-        bundler(args.yamlFile, False)
+        bundler(args.yamlFile, False, False)
 
 if __name__ == "__main__":
     exit(main())
