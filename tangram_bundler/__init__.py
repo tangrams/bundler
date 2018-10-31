@@ -8,7 +8,7 @@ from urlparse import urljoin
 
 LAYER_KEY_WORDS = ['data', 'filter', 'visible', 'enabled']
 
-def appendUniformTexturePath(fileList, basePath, rootNode, uniformTextureStr):
+def getUniformTexturePath(fileList, basePath, rootNode, uniformTextureStr):
     referenceTexturePath = ""
     explicitUniformTexturePath = ""
     if ('textures' in rootNode) and (uniformTextureStr in rootNode['textures']):
@@ -16,23 +16,32 @@ def appendUniformTexturePath(fileList, basePath, rootNode, uniformTextureStr):
     explicitUniformTexturePath = os.path.relpath(uniformTextureStr, basePath)
 
     if (os.path.exists(explicitUniformTexturePath)):
-        fileList.append(explicitUniformTexturePath)
+        return explicitUniformTexturePath
     elif (os.path.exists(referenceTexturePath)):
-        fileList.append(referenceTexturePath)
+        return referenceTexturePath
+    return None
 
 def addUniformTextureDependency(fileList, basePath, rootNode, styleName, uniformName):
     key = rootNode['styles'][styleName]['shaders']['uniforms'][uniformName]
 
     if isinstance(key, basestring):
-        appendUniformTexturePath(fileList, basePath, rootNode, key)
+        uniformTexture = getUniformTexturePath(fileList, basePath, rootNode, key)
+        if uniformTexture:
+            rootNode['styles'][styleName]['shaders']['uniforms'][uniformName] = uniformTexture
+            fileList.append(uniformTexture)
     elif isinstance(key, list):
+        index = 0
         for textureStr in key:
             if isinstance(textureStr, basestring):
-                appendUniformTexturePath(fileList, basePath, rootNode, textureStr)
+                uniformTexture = getUniformTexturePath(fileList, basePath, rootNode, textureStr)
+                if uniformTexture:
+                    rootNode['styles'][styleName]['shaders']['uniforms'][uniformName][index] = uniformTexture
+                    fileList.append(uniformTexture)
 
 def appendDrawRuleTexture(fileList, drawRule, basePath):
     if 'texture' in drawRule:
-        fileList.append(os.path.relpath(drawRule['texture'], basePath))
+        drawRule['texture'] = os.path.relpath(drawRule['texture'], basePath)
+        fileList.append(drawRule['texture'])
 
 def appendLayerDrawRuleTextures(fileList, layerNode, basePath):
     for key in layerNode:
@@ -56,12 +65,16 @@ def fetchDependencies(fileList, rootNode, basePath):
             fontNode = fontsNode[font]
             # single face object
             if 'url' in fontNode and type(fontNode['url']) is str:
-                fileList.append(os.path.relpath(fontNode['url'], basePath))
+                fontNode['url'] = os.path.relpath(fontNode['url'], basePath)
+                fileList.append(fontNode['url'])
             else:
                 # multiple font face objects
+                index = 0
                 for face in fontNode:
                     if 'url' in face:
-                        fileList.append(os.path.relpath(face['url'], basePath))
+                        face['url'] = os.path.relpath(face['url'], basePath)
+                        index = index + 1
+                        fileList.append(face['url'])
 
     # Search for textures urls
     if 'textures' in rootNode:
@@ -69,7 +82,8 @@ def fetchDependencies(fileList, rootNode, basePath):
         for texture in texturesNode:
             textureNode = texturesNode[texture]
             if 'url' in textureNode:
-                fileList.append(os.path.relpath(textureNode['url'], basePath))
+                textureNode['url'] = os.path.relpath(textureNode['url'], basePath)
+                fileList.append(textureNode['url'])
 
     # Search for asset url in styles
     if 'styles' in rootNode:
@@ -83,14 +97,16 @@ def fetchDependencies(fileList, rootNode, basePath):
                     for uniform in uniformsNode:
                         addUniformTextureDependency(fileList, basePath, rootNode, style, uniform)
             if 'texture' in styleNode:
-                fileList.append(os.path.relpath(styleNode['texture'], basePath))
+                styleNode['texture'] = os.path.relpath(styleNode['texture'], basePath)
+                fileList.append(styleNode['texture'])
             if 'material' in styleNode:
                 materialNode = styleNode['material']
                 if (type(materialNode) is dict):
                     for prop in ['emission', 'ambient', 'diffuse', 'specular', 'normal']:
                         propNode = materialNode[prop]
                         if (type(propNode) is dict and 'texture' in propNode):
-                            fileList.append(os.path.relpath(propNode['texture'], basePath))
+                            propNode['texture'] = os.path.relpath(propNode['texture'], basePath)
+                            fileList.append(propNode['texture'])
             if 'draw' in styleNode:
                 drawNode = styleNode['draw']
                 appendDrawRuleTexture(fileList, drawNode, basePath)
@@ -161,9 +177,10 @@ def mergeMapFields(yamlRoot, sceneNode):
 
 def resolveGenericPath(input, basePath):
     if (type(input) is str):
-        return urljoin(basePath, input)
-    else:
-        return input
+        resolvedPath = urljoin(basePath, input)
+        if (os.path.exists(resolvedPath)):
+            return resolvedPath
+    return input
 
 def resolveSceneTextureUrls(texturesNode, basePath):
     for texture in texturesNode:
@@ -188,7 +205,8 @@ def resolveShaderTextureUrls(shadersNode, basePath):
                     for uni in shadersNode['uniforms'][uniform]:
                         if type(uni) is str:
                             resolvedUniforms.append(resolveGenericPath(uni, basePath))
-                    shadersNode['uniforms'][uniform] = resolvedUniforms
+                    if resolvedUniforms: # make sure to not modify non-texture uniforms
+                        shadersNode['uniforms'][uniform] = resolvedUniforms
 
 def resolveSceneStyleUrls(stylesNode, basePath):
     for style in stylesNode:
