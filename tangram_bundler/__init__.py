@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-import os, sys, glob, yaml, zipfile
+import os, sys, glob, yaml, zipfile, argparse
 from urlparse import urljoin
 
 # Append uniform textures
@@ -282,7 +282,7 @@ def importSceneRecursive(yamlRoot, filename, allImports, importedScenes):
     resolveSceneUrls(yamlRoot, filename)
 
 # ================================== Main functions
-def bundler(filename):
+def bundler(filename, unifiedYaml):
     print filename, os.getcwd()
 
     zipFilename = os.path.splitext(filename)[0] + '.zip'
@@ -299,8 +299,14 @@ def bundler(filename):
     basePath = os.path.dirname(absFilename)
     fetchDependencies(allDependencies, rootNode, basePath)
 
-    for file in allImports:
-        allDependencies.append(os.path.relpath(file, basePath))
+    if unifiedYaml:
+        unifiedBundledSceneYamlPath = os.path.abspath(urljoin(absFilename, "./unifiedBundledScene.yaml"))
+        with open(unifiedBundledSceneYamlPath, 'w') as outfile:
+            yaml.dump(rootNode, outfile, default_flow_style=False)
+        allDependencies.append(os.path.relpath(unifiedBundledSceneYamlPath, basePath))
+    else:
+        for file in allImports:
+            allDependencies.append(os.path.relpath(file, basePath))
 
     files = list(set(allDependencies))
     print files
@@ -313,10 +319,15 @@ def bundler(filename):
     zipf.close()
 
 def main():
-    if len(sys.argv) > 1:
-        bundler(sys.argv[1])
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("yamlFile", help = "root scene file to initiate bundling")
+    parser.add_argument("-u", "--unified", action="store_true", help = "Create a unified yaml file post merging all imports, instead of nested import files")
+    args = parser.parse_args()
+    if args.unified:
+        bundler(args.yamlFile, True)
     else:
-        bundler(raw_input("What Tangram YAML scene file do you want to bundle into a zipfile?: "))
+        bundler(args.yamlFile, False)
 
 if __name__ == "__main__":
     exit(main())
