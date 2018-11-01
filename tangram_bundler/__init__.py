@@ -304,6 +304,7 @@ def bundler(filename, unifiedYaml, exportAsJson):
             unifiedBundledSceneJsonPath = os.path.abspath(urljoin(absFilename, "./unifiedBundledScene.json"))
             with open(unifiedBundledSceneJsonPath, 'w') as outfile:
                 json.dump(rootNode, outfile)
+            allDependencies.append(os.path.relpath(unifiedBundledSceneJsonPath, basePath))
         else:
             unifiedBundledSceneYamlPath = os.path.abspath(urljoin(absFilename, "./unifiedBundledScene.yaml"))
             with open(unifiedBundledSceneYamlPath, 'w') as outfile:
