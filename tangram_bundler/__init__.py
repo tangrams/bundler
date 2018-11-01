@@ -324,6 +324,15 @@ def bundler(filename, unifiedYaml, exportAsJson):
             zipf.write(file)
     zipf.close()
 
+    # delete unified file post bundling
+    if unifiedYaml:
+        if exportAsJson:
+            unifiedBundledSceneJsonPath = os.path.abspath(urljoin(absFilename, "./unifiedBundledScene.json"))
+            os.remove(unifiedBundledSceneJsonPath)
+        else:
+            unifiedBundledSceneYamlPath = os.path.abspath(urljoin(absFilename, "./unifiedBundledScene.yaml"))
+            os.remove(unifiedBundledSceneYamlPath)
+
 def main():
 
     parser = argparse.ArgumentParser()
