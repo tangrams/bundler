@@ -301,15 +301,17 @@ def bundler(filename, unifiedYaml, exportAsJson):
 
     if unifiedYaml:
         if exportAsJson:
-            unifiedBundledSceneJsonPath = os.path.abspath(urljoin(absFilename, "./unifiedBundledScene.json"))
-            with open(unifiedBundledSceneJsonPath, 'w') as outfile:
+            unifiedJsonFilename = os.path.splitext(filename)[0] + '.json'
+            with open(unifiedJsonFilename, 'w') as outfile:
                 json.dump(rootNode, outfile)
-            allDependencies.append(os.path.relpath(unifiedBundledSceneJsonPath, basePath))
+            allDependencies.append(os.path.relpath(unifiedJsonFilename, basePath))
         else:
-            unifiedBundledSceneYamlPath = os.path.abspath(urljoin(absFilename, "./unifiedBundledScene.yaml"))
-            with open(unifiedBundledSceneYamlPath, 'w') as outfile:
+            backupFilename = filename + ".bck"
+            os.rename(filename, backupFilename)
+            unifiedYamlFilename = filename
+            with open(unifiedYamlFilename, 'w') as outfile:
                 yaml.dump(rootNode, outfile, default_flow_style=False)
-            allDependencies.append(os.path.relpath(unifiedBundledSceneYamlPath, basePath))
+            allDependencies.append(os.path.relpath(unifiedYamlFilename, basePath))
     else:
         for file in allImports:
             allDependencies.append(os.path.relpath(file, basePath))
@@ -324,14 +326,16 @@ def bundler(filename, unifiedYaml, exportAsJson):
             zipf.write(file)
     zipf.close()
 
-    # delete unified file post bundling
     if unifiedYaml:
         if exportAsJson:
-            unifiedBundledSceneJsonPath = os.path.abspath(urljoin(absFilename, "./unifiedBundledScene.json"))
-            os.remove(unifiedBundledSceneJsonPath)
+            #remove temp json file, already bundled in zip archive
+            unifiedJsonFilename = os.path.splitext(filename)[0] + '.json'
+            os.remove(unifiedJsonFilename)
         else:
-            unifiedBundledSceneYamlPath = os.path.abspath(urljoin(absFilename, "./unifiedBundledScene.yaml"))
-            os.remove(unifiedBundledSceneYamlPath)
+            #rename original demo file back!, modified unified one already bundled in zip archive
+            backupFilename = filename + ".bck"
+            os.rename(backupFilename, filename)
+    
 
 def main():
 
