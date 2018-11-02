@@ -15,7 +15,8 @@ def getUniformTexturePath(fileList, basePath, rootNode, uniformTextureStr):
     referenceTexturePath = ""
     explicitUniformTexturePath = ""
     if ('textures' in rootNode) and (uniformTextureStr in rootNode['textures']):
-        referenceTexturePath = os.path.relpath(rootNode['textures'][ uniformTextureStr]['url'], basePath)
+        if 'url' in rootNode['textures'][ uniformTextureStr]:
+            referenceTexturePath = os.path.relpath(rootNode['textures'][ uniformTextureStr]['url'], basePath)
     explicitUniformTexturePath = os.path.relpath(uniformTextureStr, basePath)
 
     if (os.path.exists(explicitUniformTexturePath)):
@@ -60,7 +61,8 @@ def appendLayerDrawRuleTextures(fileList, layerNode, basePath):
                 appendDrawRuleTexture(fileList, drawNode, basePath)
         else:
             subLayerNode = layerNode[key]
-            appendLayerDrawRuleTextures(fileList, subLayerNode, basePath)
+            if type(subLayerNode) is dict:
+                appendLayerDrawRuleTextures(fileList, subLayerNode, basePath)
 
 # Fetch all asset dependencies in the constructed rootNode
 def fetchDependencies(fileList, rootNode, basePath):
@@ -259,7 +261,8 @@ def resolveLayersDrawTexture(layerNode, basePath):
                 print WARN_COLOR + "Draw Rule is none for key ", key, " in layer ", str(layerNode) + NORM_COLOR
         else:
             subLayerNode = layerNode[key]
-            resolveLayersDrawTexture(subLayerNode, basePath)
+            if type(subLayerNode) is dict:
+                resolveLayersDrawTexture(subLayerNode, basePath)
 
 
 def resolveSceneUrls(yamlRoot, filename):
