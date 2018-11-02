@@ -8,6 +8,9 @@ from urlparse import urljoin
 
 LAYER_KEY_WORDS = ['data', 'filter', 'visible', 'enabled']
 
+WARN_COLOR = '\033[93m'
+NORM_COLOR = '\033[0m'
+
 def getUniformTexturePath(fileList, basePath, rootNode, uniformTextureStr):
     referenceTexturePath = ""
     explicitUniformTexturePath = ""
@@ -50,8 +53,11 @@ def appendLayerDrawRuleTextures(fileList, layerNode, basePath):
             continue
         elif key == 'draw':
             drawNode = layerNode['draw']
-            for drawRules in drawNode:
-                appendDrawRuleTexture(fileList, drawNode[drawRules], basePath)
+            if type(drawNode) is list:
+                for drawRules in drawNode:
+                    appendDrawRuleTexture(fileList, drawNode[drawRules], basePath)
+            elif type(drawNode) is dict:
+                appendDrawRuleTexture(fileList, drawNode, basePath)
         else:
             subLayerNode = layerNode[key]
             appendLayerDrawRuleTextures(fileList, subLayerNode, basePath)
@@ -241,10 +247,16 @@ def resolveLayersDrawTexture(layerNode, basePath):
             continue
         elif key == 'draw':
             drawNode = layerNode['draw']
-            for drawRule in drawNode:
-                drawRuleNode = drawNode[drawRule]
-                if 'texture' in drawRuleNode:
-                    drawRuleNode['texture'] = resolveGenericPath(drawRuleNode['texture'], basePath)
+            if type(drawNode) is list:
+                for drawRule in drawNode:
+                    drawRuleNode = drawNode[drawRule]
+                    if 'texture' in drawRuleNode:
+                        drawRuleNode['texture'] = resolveGenericPath(drawRuleNode['texture'], basePath)
+            elif type(drawNode) is dict:
+                if 'texture' in drawNode:
+                    drawNode['texture'] = resolveGenericPath(drawNode['texture'], basePath)
+            else:
+                print WARN_COLOR + "Draw Rule is none for key ", key, " in layer ", str(layerNode) + NORM_COLOR
         else:
             subLayerNode = layerNode[key]
             resolveLayersDrawTexture(subLayerNode, basePath)
