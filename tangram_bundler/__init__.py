@@ -282,7 +282,7 @@ def importSceneRecursive(yamlRoot, filename, allImports, importedScenes):
     resolveSceneUrls(yamlRoot, filename)
 
 # ================================== Main functions
-def bundler(filename, unifiedYaml, exportAsJson):
+def bundler(filename, unifiedYaml, exportAsJson, mergeOnlyOutputFile):
     print filename, os.getcwd()
 
     zipFilename = os.path.splitext(filename)[0] + '.zip'
@@ -301,14 +301,17 @@ def bundler(filename, unifiedYaml, exportAsJson):
 
     if unifiedYaml:
         if exportAsJson:
-            unifiedJsonFilename = os.path.splitext(filename)[0] + '.json'
+            unifiedJsonFilename = mergeOnlyOutputFile or (os.path.splitext(filename)[0] + '.json')
             with open(unifiedJsonFilename, 'w') as outfile:
                 json.dump(rootNode, outfile)
             allDependencies.append(os.path.relpath(unifiedJsonFilename, basePath))
         else:
-            backupFilename = filename + ".bck"
-            os.rename(filename, backupFilename)
-            unifiedYamlFilename = filename
+            if mergeOnlyOutputFile:
+                unifiedYamlFilename = mergeOnlyOutputFile
+            else:
+                backupFilename = filename + ".bck"
+                os.rename(filename, backupFilename)
+                unifiedYamlFilename = filename
             with open(unifiedYamlFilename, 'w') as outfile:
                 yaml.dump(rootNode, outfile, default_flow_style=False)
             allDependencies.append(os.path.relpath(unifiedYamlFilename, basePath))
@@ -319,22 +322,24 @@ def bundler(filename, unifiedYaml, exportAsJson):
     files = list(set(allDependencies))
     print files
 
-    print "Bundling ",filename,"width",len(files),"dependencies, into ",zipFilename
-    zipf = zipfile.ZipFile(zipFilename, 'w', zipfile.ZIP_DEFLATED)
-    for file in files:
-        if (validFileToBundle(file) and os.path.exists(file)):
-            zipf.write(file)
-    zipf.close()
+    if not mergeOnlyOutputFile:
+        print "Bundling ",filename,"width",len(files),"dependencies, into ",zipFilename
+        zipf = zipfile.ZipFile(zipFilename, 'w', zipfile.ZIP_DEFLATED)
+        for file in files:
+            if (validFileToBundle(file) and os.path.exists(file)):
+                zipf.write(file)
+        zipf.close()
 
     if unifiedYaml:
-        if exportAsJson:
-            #remove temp json file, already bundled in zip archive
-            unifiedJsonFilename = os.path.splitext(filename)[0] + '.json'
-            os.remove(unifiedJsonFilename)
-        else:
-            #rename original demo file back!, modified unified one already bundled in zip archive
-            backupFilename = filename + ".bck"
-            os.rename(backupFilename, filename)
+        if not mergeOnlyOutputFile:
+            if exportAsJson:
+                #remove temp json file, already bundled in zip archive
+                unifiedJsonFilename = os.path.splitext(filename)[0] + '.json'
+                os.remove(unifiedJsonFilename)
+            else:
+                #rename original demo file back!, modified unified one already bundled in zip archive
+                backupFilename = filename + ".bck"
+                os.rename(backupFilename, filename)
     
 
 def main():
@@ -343,14 +348,20 @@ def main():
     parser.add_argument("yamlFile", help = "root scene file to initiate bundling")
     parser.add_argument("-u", "--unified", action="store_true", help = "Create a unified yaml file post merging all imports, instead of nested import files")
     parser.add_argument("-j", "--json", action="store_true", help = "Export JSON unified bundler when set, else yaml unified bundler is exported")
+    parser.add_argument("-m", "--mergeOnlyFilename", help = "Only merge, and export to outfile name specified. Does not create a zip archive")
     args = parser.parse_args()
-    if args.unified:
+    if args.mergeOnlyFilename:
         if args.json:
-            bundler(args.yamlFile, True, True)
+            bundler(args.yamlFile, True, True, args.mergeOnlyFilename)
         else:
-            bundler(args.yamlFile, True, False)
+            bundler(args.yamlFile, True, False, args.mergeOnlyFilename)
+    elif args.unified:
+        if args.json:
+            bundler(args.yamlFile, True, True, None) 
+        else:
+            bundler(args.yamlFile, True, False, None)
     else:
-        bundler(args.yamlFile, False, False)
+        bundler(args.yamlFile, False, False, None)
 
 if __name__ == "__main__":
     exit(main())
