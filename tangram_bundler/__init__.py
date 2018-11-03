@@ -11,7 +11,7 @@ LAYER_KEY_WORDS = ['data', 'filter', 'visible', 'enabled']
 WARN_COLOR = '\033[93m'
 NORM_COLOR = '\033[0m'
 
-def getUniformTexturePath(fileList, basePath, rootNode, uniformTextureStr):
+def appendUniformTexturePath(fileList, basePath, rootNode, uniformTextureStr):
     referenceTexturePath = ""
     explicitUniformTexturePath = ""
     if ('textures' in rootNode) and (uniformTextureStr in rootNode['textures']):
@@ -20,27 +20,26 @@ def getUniformTexturePath(fileList, basePath, rootNode, uniformTextureStr):
     explicitUniformTexturePath = os.path.relpath(uniformTextureStr, basePath)
 
     if (os.path.exists(explicitUniformTexturePath)):
+        fileList.append(explicitUniformTexturePath)
         return explicitUniformTexturePath
     elif (os.path.exists(referenceTexturePath)):
-        return referenceTexturePath
+        fileList.append(referenceTexturePath)
     return None
 
 def addUniformTextureDependency(fileList, basePath, rootNode, styleName, uniformName):
     key = rootNode['styles'][styleName]['shaders']['uniforms'][uniformName]
 
     if isinstance(key, basestring):
-        uniformTexture = getUniformTexturePath(fileList, basePath, rootNode, key)
+        uniformTexture = appendUniformTexturePath(fileList, basePath, rootNode, key)
         if uniformTexture:
             rootNode['styles'][styleName]['shaders']['uniforms'][uniformName] = uniformTexture
-            fileList.append(uniformTexture)
     elif isinstance(key, list):
         index = 0
         for textureStr in key:
             if isinstance(textureStr, basestring):
-                uniformTexture = getUniformTexturePath(fileList, basePath, rootNode, textureStr)
+                uniformTexture = appendUniformTexturePath(fileList, basePath, rootNode, textureStr)
                 if uniformTexture:
                     rootNode['styles'][styleName]['shaders']['uniforms'][uniformName][index] = uniformTexture
-                    fileList.append(uniformTexture)
 
 def appendDrawRuleTexture(fileList, drawRule, basePath):
     if 'texture' in drawRule:
