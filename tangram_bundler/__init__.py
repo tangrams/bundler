@@ -1,106 +1,381 @@
 #!/usr/bin/env python
 
-import os, sys, glob, yaml, zipfile
+import os, sys, glob, yaml, zipfile, argparse, json
+from urlparse import urljoin
 
 # Append uniform textures
 # - uniforms could reference a texture already loaded from textures: {} or could explicitly define a texture file
-def addUniformTextureDependency(file_list, basePath, yaml_file, styleName, uniformName):
+
+LAYER_KEY_WORDS = ['data', 'filter', 'visible', 'enabled']
+
+WARN_COLOR = '\033[93m'
+NORM_COLOR = '\033[0m'
+
+def appendUniformTexturePath(fileList, basePath, rootNode, uniformTextureStr):
     referenceTexturePath = ""
     explicitUniformTexturePath = ""
-    key = yaml_file['styles'][styleName]['shaders']['uniforms'][uniformName]
-
-    if isinstance(key, basestring):
-        if ('textures' in yaml_file) and (key in yaml_file['textures']):
-            referenceTexturePath = basePath + '/' + yaml_file['textures'][ yaml_file['styles'][styleName]['shaders']['uniforms'][uniformName] ]['url']
-        explicitUniformTexturePath = basePath + '/' + yaml_file['styles'][styleName]['shaders']['uniforms'][uniformName]
+    if ('textures' in rootNode) and (uniformTextureStr in rootNode['textures']):
+        if 'url' in rootNode['textures'][ uniformTextureStr]:
+            referenceTexturePath = os.path.relpath(rootNode['textures'][ uniformTextureStr]['url'], basePath)
+    explicitUniformTexturePath = os.path.relpath(uniformTextureStr, basePath)
 
     if (os.path.exists(explicitUniformTexturePath)):
-        file_list.append(os.path.normpath(explicitUniformTexturePath))
+        fileList.append(explicitUniformTexturePath)
+        return explicitUniformTexturePath
     elif (os.path.exists(referenceTexturePath)):
-        file_list.append(os.path.normpath(referenceTexturePath))
+        fileList.append(referenceTexturePath)
+    return None
 
+def addUniformTextureDependency(fileList, basePath, rootNode, styleName, uniformName):
+    key = rootNode['styles'][styleName]['shaders']['uniforms'][uniformName]
 
-# Append yaml dependences in yaml_file ('import' files) to another yaml file (full_yaml_file)
-def addDependencies(file_list, filename):
-    print "Adding dependencies for file: ", filename
-    file_list.append(os.path.normpath(filename))
-    folder = os.path.dirname(filename)
-    yaml_file = yaml.safe_load(open(filename))
+    if isinstance(key, basestring):
+        uniformTexture = appendUniformTexturePath(fileList, basePath, rootNode, key)
+        if uniformTexture:
+            rootNode['styles'][styleName]['shaders']['uniforms'][uniformName] = uniformTexture
+    elif isinstance(key, list):
+        index = 0
+        for textureStr in key:
+            if isinstance(textureStr, basestring):
+                uniformTexture = appendUniformTexturePath(fileList, basePath, rootNode, textureStr)
+                if uniformTexture:
+                    rootNode['styles'][styleName]['shaders']['uniforms'][uniformName][index] = uniformTexture
 
-    # TODO:
-    #   - Check if any url actually exist and is local before doing nothing
+def appendDrawRuleTexture(fileList, drawRule, basePath):
+    if 'texture' in drawRule:
+        drawRule['texture'] = os.path.relpath(drawRule['texture'], basePath)
+        fileList.append(drawRule['texture'])
 
+def appendLayerDrawRuleTextures(fileList, layerNode, basePath):
+    for key in layerNode:
+        if key in LAYER_KEY_WORDS:
+            # ignore these layer keys
+            continue
+        elif key == 'draw':
+            drawNode = layerNode['draw']
+            if type(drawNode) is list:
+                for drawRules in drawNode:
+                    appendDrawRuleTexture(fileList, drawNode[drawRules], basePath)
+            elif type(drawNode) is dict:
+                appendDrawRuleTexture(fileList, drawNode, basePath)
+        else:
+            subLayerNode = layerNode[key]
+            if type(subLayerNode) is dict:
+                appendLayerDrawRuleTextures(fileList, subLayerNode, basePath)
+
+# Fetch all asset dependencies in the constructed rootNode
+def fetchDependencies(fileList, rootNode, basePath):
     # Search for fonts urls
-    if 'fonts' in yaml_file:
-        for font in yaml_file['fonts']:
-            # initial Tangram font support
-            if 'url' in yaml_file['fonts'][font]:
-                file_list.append(os.path.normpath(folder + '/' + yaml_file['fonts'][font]['url']))
-
-            # newer Tangram font support
-            for weight in yaml_file['fonts'][font]:
-                if 'url' in weight:
-                    file_list.append(os.path.normpath(folder + '/' + weight['url']))
+    if 'fonts' in rootNode:
+        fontsNode = rootNode['fonts']
+        for font in fontsNode:
+            fontNode = fontsNode[font]
+            # single face object
+            if 'url' in fontNode and type(fontNode['url']) is str:
+                fontNode['url'] = os.path.relpath(fontNode['url'], basePath)
+                fileList.append(fontNode['url'])
+            else:
+                # multiple font face objects
+                index = 0
+                for face in fontNode:
+                    if 'url' in face:
+                        face['url'] = os.path.relpath(face['url'], basePath)
+                        index = index + 1
+                        fileList.append(face['url'])
 
     # Search for textures urls
-    if 'textures' in yaml_file:
-        for texture in yaml_file['textures']:
-            if 'url' in yaml_file['textures'][texture]:
-                file_list.append(os.path.normpath(folder + '/' + yaml_file['textures'][texture]['url']))
+    if 'textures' in rootNode:
+        texturesNode = rootNode['textures']
+        for texture in texturesNode:
+            textureNode = texturesNode[texture]
+            if 'url' in textureNode:
+                textureNode['url'] = os.path.relpath(textureNode['url'], basePath)
+                fileList.append(textureNode['url'])
 
-    # Search for u_envmap or u_ramp urls
-    if 'styles' in yaml_file:
-        for style in yaml_file['styles']:
-            if 'shaders' in yaml_file['styles'][style]:
-                if 'uniforms' in yaml_file['styles'][style]['shaders']:
-                    for uniform in yaml_file['styles'][style]['shaders']['uniforms']:
-                        addUniformTextureDependency(file_list, folder, yaml_file, style, uniform)
+    # Search for asset url in styles
+    if 'styles' in rootNode:
+        stylesNode = rootNode['styles']
+        for style in stylesNode:
+            styleNode = stylesNode[style]
+            if 'shaders' in styleNode:
+                shadersNode = styleNode['shaders']
+                if 'uniforms' in shadersNode:
+                    uniformsNode = shadersNode['uniforms']
+                    for uniform in uniformsNode:
+                        addUniformTextureDependency(fileList, basePath, rootNode, style, uniform)
+            if 'texture' in styleNode:
+                styleNode['texture'] = os.path.relpath(styleNode['texture'], basePath)
+                fileList.append(styleNode['texture'])
+            if 'material' in styleNode:
+                materialNode = styleNode['material']
+                if (type(materialNode) is dict):
+                    for prop in ['emission', 'ambient', 'diffuse', 'specular', 'normal']:
+                        propNode = materialNode[prop]
+                        if (type(propNode) is dict and 'texture' in propNode):
+                            propNode['texture'] = os.path.relpath(propNode['texture'], basePath)
+                            fileList.append(propNode['texture'])
+            if 'draw' in styleNode:
+                drawNode = styleNode['draw']
+                appendDrawRuleTexture(fileList, drawNode, basePath)
 
-    # Search for inner dependencies
-    if 'import' in yaml_file:
-        if (type(yaml_file['import']) is str):
-            addDependencies(file_list, folder + '/' + yaml_file['import'])
+    # search texture paths defined in draw rule groups
+    if 'layers' in rootNode:
+        layersNode = rootNode['layers']
+        for layerNode in layersNode:
+            appendLayerDrawRuleTextures(fileList, layersNode[layerNode], basePath)
+
+def validFileToBundle(fileName):
+    # we atleast know we need to ignore bundling any network url (todo: fetch yaml http urls and do not ignore these)
+    if (fileName.startswith("http") and not fileName.endswith(".yaml")):
+        return False
+    return True
+
+def loadYaml(filename):
+    with open(filename, 'r') as yamlFile:
+        return yaml.safe_load(yamlFile)
+
+def collectAllImports(allImports):
+    if (len(allImports) <= 0):
+        return
+    
+    subImports = {}
+    for fileName in allImports:
+        yamlFile = allImports[fileName]
+        if 'import' in yamlFile:
+            importNode = yamlFile['import']
+            if (type(importNode) is str):
+                importPath = os.path.abspath(urljoin(fileName, importNode))
+                subImports[importPath] = loadYaml(importPath)
+            else:
+                for imp in importNode:
+                    importPath = os.path.abspath(urljoin(fileName, imp))
+                    subImports[importPath] = loadYaml(importPath)
+            collectAllImports(subImports)
+    allImports.update(subImports)
+
+def getSceneImports(filename):
+    imports = []
+    directory = os.path.dirname(filename)
+    yamlFile = loadYaml(filename)
+    if 'import' in yamlFile:
+        importNode = yamlFile['import']
+        if (type(importNode) is str):
+            importPath = directory + '/' + importNode
+            imports.append(importPath)
         else:
-            for file in yaml_file['import']:
-                addDependencies(file_list, folder + '/' + file)
+            for imp in importNode:
+                importPath = directory + '/' + imp
+                imports.append(importPath)
+    return imports
+
+def mergeMapFields(yamlRoot, sceneNode):
+    for key in sceneNode:
+        source = sceneNode[key]
+        if key not in yamlRoot:
+            yamlRoot[key] = source
+            continue
+        if ((yamlRoot[key] is None) or (type(yamlRoot[key]) is not dict)):
+            yamlRoot[key] = source
+        else: #(type(yamlRoot[key]) is dict):
+            if (type(source) is dict):
+                mergeMapFields(yamlRoot[key], source)
+            else:
+                yamlRoot[key] = source
+
+def resolveGenericPath(input, basePath):
+    if (type(input) is str):
+        resolvedPath = urljoin(basePath, input)
+        if (os.path.exists(resolvedPath)):
+            return resolvedPath
+    return input
+
+def resolveSceneTextureUrls(texturesNode, basePath):
+    for texture in texturesNode:
+        textureNode = texturesNode[texture]
+        if 'url' in textureNode:
+            textureNode['url'] = resolveGenericPath(textureNode['url'], basePath)
+
+def resolveMaterialTextureUrls(materialNode, basePath):
+    if (type(materialNode) is dict):
+        for prop in ['emission', 'ambient', 'diffuse', 'specular', 'normal']:
+            if (type(materialNode[prop]) is dict and 'texture' in materialNode[prop]):
+                materialNode[prop]['texture'] = resolveGenericPath(materialNode[prop]['texture'], basePath)
+
+def resolveShaderTextureUrls(shadersNode, basePath):
+    if (type(shadersNode) is dict):
+        if 'uniforms' in shadersNode:
+            for uniform in shadersNode['uniforms']:
+                if (type(shadersNode['uniforms'][uniform]) is str):
+                    shadersNode['uniforms'][uniform] = resolveGenericPath(shadersNode['uniforms'][uniform], basePath)
+                elif (type(shadersNode['uniforms'][uniform]) is list):
+                    resolvedUniforms = []
+                    for uni in shadersNode['uniforms'][uniform]:
+                        if type(uni) is str:
+                            resolvedUniforms.append(resolveGenericPath(uni, basePath))
+                    if resolvedUniforms: # make sure to not modify non-texture uniforms
+                        shadersNode['uniforms'][uniform] = resolvedUniforms
+
+def resolveSceneStyleUrls(stylesNode, basePath):
+    for style in stylesNode:
+        if (type(stylesNode[style]) is not dict):
+            continue
+        if 'texture' in stylesNode[style]:
+            stylesNode[style]['texture'] = resolveGenericPath(stylesNode[style]['texture'], basePath)
+        if 'material' in stylesNode[style]:
+            resolveMaterialTextureUrls(stylesNode[style]['materials'], basePath)
+        if 'shaders' in stylesNode[style]:
+            resolveShaderTextureUrls(stylesNode[style]['shaders'], basePath)
+        if 'draw' in stylesNode[style]:
+            drawNode = stylesNode[style]['draw']
+            if 'texture' in drawNode:
+                stylesNode[style]['draw]']['texture'] = resolveGenericPath(stylesNode[style]['draw]']['texture'], basePath)
+
+def resolveSceneFontsUrl(fontsNode, basePath):
+    if (type(fontsNode) is dict):
+        for font in fontsNode:
+            fontNode = fontsNode[font]
+            if (type(fontNode) is dict and 'url' in fontNode):
+                fontNode['url'] = resolveGenericPath(fontNode['url'], basePath)
+            elif(type(fontNode) is list):
+                for f in fontNode:
+                    if 'url' in f:
+                        f['url'] = resolveGenericPath(f['url'], basePath)
+
+def resolveLayersDrawTexture(layerNode, basePath):
+    for key in layerNode:
+        if key in LAYER_KEY_WORDS:
+            # ignore these layer keys
+            continue
+        elif key == 'draw':
+            drawNode = layerNode['draw']
+            if type(drawNode) is list:
+                for drawRule in drawNode:
+                    drawRuleNode = drawNode[drawRule]
+                    if 'texture' in drawRuleNode:
+                        drawRuleNode['texture'] = resolveGenericPath(drawRuleNode['texture'], basePath)
+            elif type(drawNode) is dict:
+                if 'texture' in drawNode:
+                    drawNode['texture'] = resolveGenericPath(drawNode['texture'], basePath)
+            else:
+                print WARN_COLOR + "Draw Rule is none for key ", key, " in layer ", str(layerNode) + NORM_COLOR
+        else:
+            subLayerNode = layerNode[key]
+            if type(subLayerNode) is dict:
+                resolveLayersDrawTexture(subLayerNode, basePath)
+
+
+def resolveSceneUrls(yamlRoot, filename):
+    basePath = filename
+    if 'textures' in yamlRoot:
+        resolveSceneTextureUrls(yamlRoot['textures'], basePath)
+    if 'styles' in yamlRoot:
+        resolveSceneStyleUrls(yamlRoot['styles'], basePath)
+    if 'fonts' in yamlRoot:
+        resolveSceneFontsUrl(yamlRoot['fonts'], basePath)
+    if 'layers' in yamlRoot:
+        layersNode = yamlRoot['layers']
+        for layerNode in layersNode:
+            resolveLayersDrawTexture(yamlRoot['layers'][layerNode], basePath)
+
+
+def importSceneRecursive(yamlRoot, filename, allImports, importedScenes):
+    if filename in importedScenes:
+        return
+    importedScenes.add(filename)
+    sceneNode = allImports[filename]
+    if ((sceneNode is None) or (type(sceneNode) is not dict)):
+        return
+    imports = getSceneImports(filename)
+    sceneNode['import'] = None
+    for importScene in imports:
+        importFilename = os.path.abspath(urljoin(filename, importScene))
+        importSceneRecursive(yamlRoot, importFilename, allImports, importedScenes)
+    importedScenes.remove(filename)
+    print "merging scene file to root: ", filename
+    mergeMapFields(yamlRoot, sceneNode)
+    resolveSceneUrls(yamlRoot, filename)
 
 # ================================== Main functions
-def bundler(full_filename):
-    print full_filename, os.getcwd()
-    filename, file_extension = os.path.splitext(full_filename)
-    if file_extension == '.yaml':
-        all_dependencies = []
+def bundler(filename, unifiedYaml, exportAsJson, mergeOnlyOutputFile):
+    print filename, os.getcwd()
 
-        # 1st order dependencies
-        addDependencies(all_dependencies, './'+full_filename)
+    zipFilename = os.path.splitext(filename)[0] + '.zip'
+    allImports = {}
+    absFilename = os.path.abspath(filename)
+    allImports[absFilename] = loadYaml(absFilename)
+    collectAllImports(allImports)
 
-        # 2nd order theme dependencies
-        try:
-            for file in os.listdir(os.getcwd() + "/themes"):
-                if file.endswith(".yaml"):
-                    # track like normal
-                    all_dependencies.append("themes/" + file)
-                    # some themes require additional assets
-                    print "looking at dependencies for: %s" % (file,)
-                    addDependencies(all_dependencies, "themes/" + file)
-        except Exception:
-            print "\tskipping: themes (none found)"
+    rootNode = {}
+    importedScenes = set()
+    importSceneRecursive(rootNode, absFilename, allImports, importedScenes)
 
-        files = list(set(all_dependencies))
+    allDependencies = []
+    basePath = os.path.dirname(absFilename)
+    fetchDependencies(allDependencies, rootNode, basePath)
 
-        print "Bundling ",filename,"width",len(files),"dependencies, into ",filename+".zip"
-        zipf = zipfile.ZipFile(filename+'.zip', 'w', zipfile.ZIP_DEFLATED)
-        for file in files:
-            zipf.write(file)
-        zipf.close()
+    if unifiedYaml:
+        if exportAsJson:
+            unifiedJsonFilename = mergeOnlyOutputFile or (os.path.splitext(filename)[0] + '.json')
+            with open(unifiedJsonFilename, 'w') as outfile:
+                json.dump(rootNode, outfile)
+            allDependencies.append(os.path.relpath(unifiedJsonFilename, basePath))
+        else:
+            if mergeOnlyOutputFile:
+                unifiedYamlFilename = mergeOnlyOutputFile
+            else:
+                backupFilename = filename + ".bck"
+                os.rename(filename, backupFilename)
+                unifiedYamlFilename = filename
+            with open(unifiedYamlFilename, 'w') as outfile:
+                yaml.dump(rootNode, outfile, default_flow_style=False)
+            allDependencies.append(os.path.relpath(unifiedYamlFilename, basePath))
     else:
-        print 'Error: file',
+        for file in allImports:
+            allDependencies.append(os.path.relpath(file, basePath))
+
+    files = list(set(allDependencies))
+    print files
+
+    if not mergeOnlyOutputFile:
+        print "Bundling ",filename,"width",len(files),"dependencies, into ",zipFilename
+        zipf = zipfile.ZipFile(zipFilename, 'w', zipfile.ZIP_DEFLATED)
+        for file in files:
+            if (validFileToBundle(file) and os.path.exists(file)):
+                zipf.write(file)
+        zipf.close()
+
+    if unifiedYaml:
+        if not mergeOnlyOutputFile:
+            if exportAsJson:
+                #remove temp json file, already bundled in zip archive
+                unifiedJsonFilename = os.path.splitext(filename)[0] + '.json'
+                os.remove(unifiedJsonFilename)
+            else:
+                #rename original demo file back!, modified unified one already bundled in zip archive
+                backupFilename = filename + ".bck"
+                os.rename(backupFilename, filename)
+    
 
 def main():
-    if len(sys.argv) > 1:
-        bundler(sys.argv[1])
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("yamlFile", help = "root scene file to initiate bundling")
+    parser.add_argument("-u", "--unified", action="store_true", help = "Create a unified yaml file post merging all imports, instead of nested import files")
+    parser.add_argument("-j", "--json", action="store_true", help = "Export JSON unified bundler when set, else yaml unified bundler is exported")
+    parser.add_argument("-m", "--mergeOnlyFilename", help = "Only merge, and export to outfile name specified. Does not create a zip archive")
+    args = parser.parse_args()
+    if args.mergeOnlyFilename:
+        if args.json:
+            bundler(args.yamlFile, True, True, args.mergeOnlyFilename)
+        else:
+            bundler(args.yamlFile, True, False, args.mergeOnlyFilename)
+    elif args.unified:
+        if args.json:
+            bundler(args.yamlFile, True, True, None) 
+        else:
+            bundler(args.yamlFile, True, False, None)
     else:
-        bundler(raw_input("What Tangram YAML scene file do you want to bundle into a zipfile?: "))
+        bundler(args.yamlFile, False, False, None)
 
 if __name__ == "__main__":
     exit(main())
