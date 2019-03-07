@@ -5,12 +5,15 @@
 Bundle a Tangram `.yaml` scene file (and the corresponding dependences and components) into a single `.zip` file.
 
 ## How to use it by installing it locally
+
 Just do:
 
 ```bash
 pip install tangram_bundler
 tangram-bundle scene.yaml
 ```
+
+NOTE: The Tangram Bundler works with Python 2.x but is incompatible with Python 3.x.
 
 ## How to use it without installing locally
 
