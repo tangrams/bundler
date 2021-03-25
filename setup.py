@@ -5,7 +5,7 @@ setup(
     url = 'https://github.com/tangrams/bundler',
     version = 0.7,
     install_requires = [
-        'PyYAML == 3.12'
+        'PyYAML == 5.4'
     ],
     packages = [
         'tangram_bundler'
